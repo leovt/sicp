@@ -172,6 +172,7 @@ class Document:
                 clean_caption_tags(soup)
                 make_caption_first_child(soup)
 
+                remove_toc_backlinks(soup)
                 anchor_name_to_id_and_deduplicate(soup)
                 move_anchors_from_ul_to_li(soup)
                 update_anchors_href(soup)
@@ -264,14 +265,21 @@ def remove_font_tag(soup):
     for tag in soup.find_all('font'):
         tag.unwrap()
 
+def remove_toc_backlinks(soup):
+    for tag in soup.find_all('a', href=re.compile(r'%_toc_%')):
+        print(tag)
+        tag.unwrap()
+
 def update_anchors_href(soup):
     for tag in soup.find_all('a'):
         if 'href' in tag.attrs:
             href = tag['href']
             i = href.find('#')
+            if i == -1:
+                i = len(href)
             href_new = href[:i].replace('.html', '.xhtml') + href[i:].replace('%', 'a')
             if href_new != href:
-                print(href, '->', href_new)
+                #print(href, '->', href_new)
                 tag['href'] = href_new
 
 def remove_obsolete_attributes(soup):
