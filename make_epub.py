@@ -160,113 +160,22 @@ class Document:
 
                 soup = BeautifulSoup(med.data, 'html5lib')
 
-                for tag in soup.find_all('tt'):
-                    tag.name = 'code'
+                rename_obsolete_tt_tag(soup)
+                remove_obsolete_attributes(soup)
+                remove_font_tag(soup)
+                replace_inline_formula_images(soup)
 
-                for tag in soup.find_all('p'):
-                    is_empty = True
-                    for x in tag.contents:
-                        if x.name:
-                            is_empty = False
-                            break
-                        elif x.strip():
-                            is_empty = False
-                            break
-                    if is_empty:
-                        tag.decompose()
+                clean_epigraph_content(soup)
+                clean_headers(soup)
 
-                ids = set()
-                for tag in soup.find_all('a'):
-                    if 'name' in tag.attrs:
-                        new_id = tag['name'].replace('%', 'a')
-                        if new_id in ids:
-                            print('Duplicate ID', tag)
-                            tag.decompose()
-                        else:
-                            tag['id'] = new_id
-                            ids.add(new_id)
-                            del tag['name']
+                move_table_out_of_p_tag(soup)
+                clean_caption_tags(soup)
+                make_caption_first_child(soup)
 
-
-                for tag in soup.find_all('caption'):
-                    if tag.div:
-                        tag.div.unwrap()
-                    del tag['align']
-
-                for tag in soup.find_all('table'):
-                    if tag.parent.name == 'p':
-                        p_before = tag.parent
-                        p_after = soup.new_tag('p')
-                        for child in list(tag.next_siblings):
-                            p_after.append(child)
-                        p_before.insert_after(tag)
-                        p_before.insert_after(p_after)
-
-                for tag in soup.find_all(re.compile(r'^h\d$')):
-                    if tag.div:
-                        tag.div.unwrap()
-                    if tag.p:
-                        tag.p.unwrap()
-
-                for tag in soup.find_all(**{'class': 'epigraph'}):
-                    div = tag.parent.parent.parent.parent.parent
-                    assert div.name == 'div'
-                    #print('='*60)
-                    #print(div)
-                    div['class'] = tag['class']
-                    div.table.tbody.tr.td.span.unwrap()
-                    div.table.tbody.tr.td.unwrap()
-                    div.table.tbody.tr.unwrap()
-                    div.table.tbody.unwrap()
-                    div.table.unwrap()
-                    #print('-'*60)
-                    #print(div)
-
-                for tag in soup.find_all('caption'):
-                    table = tag.parent
-                    assert table.name == 'table'
-                    table.insert(0, tag)
-
-                for tag in soup.find_all('font'):
-                    tag.unwrap()
-
-                for tag in soup.find_all('a'):
-                    if 'href' in tag.attrs:
-                        href = tag.attrs['href']
-                        i = href.find('#')
-                        href = href[:i].replace('.html', '.xhtml') + href[i:].replace('%', 'a')
-                        tag['href'] = href
-
-                for tag in soup.find_all('div'):
-                    del tag['align']
-
-                for tag in soup.find_all('td'):
-                    del tag['valign']
-
-                for tag in soup.find_all('table'):
-                    del tag['width']
-
-                for tag in soup.find_all('img'):
-                    match = re.match(r'^book-Z-G-D-(\d+).gif$', tag['src'])
-                    if match:
-                        REPLACEMENTS = {
-                            '3': 'Θ', '4': 'θ', '6': 'λ',
-                            '9': 'π', '11': 'ϕ', '12': 'ψ',
-                            '13': '√',
-                            '14': '←', '15': '→', '16': '↑', '17': '↦',
-                            '18': '⋮', '19': '∫', '20': '≈',
-                        }
-                        tag.replace_with(REPLACEMENTS[match.group(1)])
-
-                for tag in soup.find_all('a'):
-                    if tag.parent.name == 'ul':
-                        tag.parent.li.insert(0, tag)
-
-                for tag in soup.find_all('img'):
-                    del tag['border']
-
-                for tag in soup.find_all('table'):
-                    del tag['border']
+                anchor_name_to_id_and_deduplicate(soup)
+                move_anchors_from_ul_to_li(soup)
+                update_anchors_href(soup)
+                remove_empty_p_tag(soup)
 
                 med.data = soup.prettify()
 
@@ -276,6 +185,130 @@ class Document:
                 med.data = med.data.replace(
                     '<html>',
                     '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">')
+
+def rename_obsolete_tt_tag(soup):
+    for tag in soup.find_all('tt'):
+        tag.name = 'code'
+
+def remove_empty_p_tag(soup):
+    for tag in soup.find_all('p'):
+        is_empty = True
+        for x in tag.contents:
+            if x.name:
+                is_empty = False
+                break
+            elif x.strip():
+                is_empty = False
+                break
+        if is_empty:
+            tag.decompose()
+
+def anchor_name_to_id_and_deduplicate(soup):
+    ids = set()
+    for tag in soup.find_all('a'):
+        if 'name' in tag.attrs:
+            new_id = tag['name'].replace('%', 'a')
+            if new_id in ids:
+                print('Duplicate ID', tag)
+                tag.decompose()
+            else:
+                tag['id'] = new_id
+                ids.add(new_id)
+                del tag['name']
+
+def clean_caption_tags(soup):
+    for tag in soup.find_all('caption'):
+        if tag.div:
+            tag.div.unwrap()
+        del tag['align']
+
+def move_table_out_of_p_tag(soup):
+    for tag in soup.find_all('table'):
+        if tag.parent.name == 'p':
+            p_before = tag.parent
+            p_after = soup.new_tag('p')
+            for child in list(tag.next_siblings):
+                p_after.append(child)
+            p_before.insert_after(tag)
+            p_before.insert_after(p_after)
+
+def clean_headers(soup):
+    for tag in soup.find_all(re.compile(r'^h\d$')):
+        if tag.div:
+            tag.div.unwrap()
+        if tag.p:
+            tag.p.unwrap()
+
+def clean_epigraph_content(soup):
+    for tag in soup.find_all(**{'class': 'epigraph'}):
+        div = tag.parent.parent.parent.parent.parent
+        assert div.name == 'div'
+        #print('='*60)
+        #print(div)
+        div['class'] = tag['class']
+        div.table.tbody.tr.td.span.unwrap()
+        div.table.tbody.tr.td.unwrap()
+        div.table.tbody.tr.unwrap()
+        div.table.tbody.unwrap()
+        div.table.unwrap()
+        #print('-'*60)
+        #print(div)
+
+def make_caption_first_child(soup):
+    for tag in soup.find_all('caption'):
+        table = tag.parent
+        assert table.name == 'table'
+        table.insert(0, tag)
+
+def remove_font_tag(soup):
+    for tag in soup.find_all('font'):
+        tag.unwrap()
+
+def update_anchors_href(soup):
+    for tag in soup.find_all('a'):
+        if 'href' in tag.attrs:
+            href = tag['href']
+            i = href.find('#')
+            href_new = href[:i].replace('.html', '.xhtml') + href[i:].replace('%', 'a')
+            if href_new != href:
+                print(href, '->', href_new)
+                tag['href'] = href_new
+
+def remove_obsolete_attributes(soup):
+    for tag in soup.find_all('div'):
+        del tag['align']
+
+    for tag in soup.find_all('td'):
+        del tag['valign']
+
+    for tag in soup.find_all('table'):
+        del tag['width']
+        del tag['border']
+
+    for tag in soup.find_all('img'):
+        del tag['border']
+
+
+def replace_inline_formula_images(soup):
+    for tag in soup.find_all('img'):
+        match = re.match(r'^book-Z-G-D-(\d+).gif$', tag['src'])
+        if match:
+            REPLACEMENTS = {
+                '3': 'Θ', '4': 'θ', '6': 'λ',
+                '9': 'π', '11': 'ϕ', '12': 'ψ',
+                '13': '√',
+                '14': '←', '15': '→', '16': '↑', '17': '↦',
+                '18': '⋮', '19': '∫', '20': '≈',
+            }
+            tag.replace_with(REPLACEMENTS[match.group(1)])
+
+def move_anchors_from_ul_to_li(soup):
+    for tag in soup.find_all('a'):
+        if tag.parent.name == 'ul':
+            tag.parent.li.insert(0, tag)
+
+
+
 
 def main():
     doc = Document('book/book.html')
