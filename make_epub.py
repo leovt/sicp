@@ -138,7 +138,7 @@ class Document:
 
     def toc_entries(self):
         for med in self.spine:
-            soup = BeautifulSoup(med.data, 'html5lib')
+            soup = med.soup
             for tag in soup.find_all(re.compile(r'^h[1-3]$')):
                 if tag.get('id'):
                     text = ' '.join(tag.stripped_strings)
@@ -178,16 +178,14 @@ class Document:
             with open('content.opf', 'w') as dummy:
                 dummy.write(content)
             for med in self.media.values():
-                assert isinstance(med.data, (str, bytes)), med
-                archive.writestr(med.name, med.data)
+                assert isinstance(med.get_data(), (str, bytes)), med
+                archive.writestr(med.name, med.get_data())
 
     def make_xml(self):
         for med in self.media.values():
             if med.name.endswith('.html'):
                 print('transforming ', med.name)
                 med.name = med.name[:-5] + '.xhtml'
-                OLD_DOCTYPE = '<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">'
-                NEW_DOCTYPE = '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html>'
 
                 soup = BeautifulSoup(med.data, 'html5lib')
 
@@ -217,14 +215,15 @@ class Document:
 
                 soup.html['xmlns'] = 'http://www.w3.org/1999/xhtml'
 
-                med.data = soup.prettify()
+                med.data = None
+                med.soup = soup
 
     def update_links(self):
         for med in self.media.values():
             if med.name.endswith('.xhtml'):
                 print('updating links in ', med.name)
                 modified = False
-                soup = BeautifulSoup(med.data, 'html5lib')
+                soup = med.soup
                 for tag in soup.find_all('img'):
                     abs_src = urljoin(med.name, tag['src'])
                     referenced_media = self.media.get(abs_src)

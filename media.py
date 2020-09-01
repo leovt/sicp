@@ -9,3 +9,10 @@ class Medium:
     data: str
     id: str = field(default_factory=lambda:next(_ids))
     attributes: dict = field(default_factory=dict)
+    soup: object = None
+
+    def get_data(self):
+        if self.soup is not None:
+            return str(self.soup)
+        else:
+            return self.data
