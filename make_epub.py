@@ -14,6 +14,19 @@ import configparser
 
 sys.setrecursionlimit(3000)
 
+def relpath(arcname, base):
+    a = arcname.split('/')
+    b = base.split('/')
+
+    while a and b and a[0] == b[0]:
+        a = a[1:]
+        b = b[1:]
+
+    if not a:
+        raise ValueError
+
+    return '/'.join(['..']*(len(b)-1) + a)
+
 class FindChildren(HTMLParser):
     '''
     A HTMLParser subclass to find related resources to download.
@@ -206,6 +219,27 @@ class Document:
                     '<html>',
                     '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">')
 
+    def update_links(self):
+        for med in self.media.values():
+            if med.name.endswith('.xhtml'):
+                print('updating links in ', med.name)
+                modified = False
+                soup = BeautifulSoup(med.data, 'html5lib')
+                for tag in soup.find_all('img'):
+                    abs_src = urljoin(med.name, tag['src'])
+                    referenced_media = self.media.get(abs_src)
+                    if not referenced_media:
+                        print('no content for', abs_src)
+                        continue
+                    if referenced_media.name != abs_src:
+                        new_src = relpath(referenced_media.name, med.name)
+                        print(tag['src'], '->', new_src)
+                        tag['src'] = new_src
+                        modified = True
+                if modified:
+                    med.data = soup.prettify()
+
+
 def rename_obsolete_tt_tag(soup):
     for tag in soup.find_all('tt'):
         tag.name = 'code'
@@ -353,6 +387,7 @@ def main():
     doc = Document('book/book.html')
     doc.make_xml()
     doc.replace_resources()
+    doc.update_links()
     doc.write('sicp.epub')
 
 if __name__ == '__main__':
