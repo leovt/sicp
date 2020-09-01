@@ -6,7 +6,7 @@ import uuid
 from html.parser import HTMLParser
 from urllib.parse import urljoin
 import re
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Doctype
 import sys
 import toc
 from media import Medium
@@ -210,14 +210,14 @@ class Document:
                 update_anchors_href(soup)
                 remove_empty_p_tag(soup)
 
+                for item in soup:
+                    if isinstance(item, Doctype):
+                        item.replace_with(Doctype('html'))
+                        break
+
+                soup.html['xmlns'] = 'http://www.w3.org/1999/xhtml'
+
                 med.data = soup.prettify()
-
-                assert OLD_DOCTYPE in med.data, med.data[:200]
-
-                med.data = med.data.replace(OLD_DOCTYPE, NEW_DOCTYPE)
-                med.data = med.data.replace(
-                    '<html>',
-                    '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">')
 
     def update_links(self):
         for med in self.media.values():
