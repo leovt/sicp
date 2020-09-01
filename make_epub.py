@@ -6,7 +6,7 @@ from datetime import datetime
 import uuid
 from html.parser import HTMLParser
 from urllib.parse import urljoin
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
 from bs4 import BeautifulSoup
 import sys
@@ -48,10 +48,14 @@ class FindChildren(HTMLParser):
         self.data = data.strip()
         #print("Encountered some data  :", data)
 
+ids = (f'item{n}' for n in count(1000))
+
 @dataclass
 class Medium:
     name: str
     data: str
+    id: str = field(default_factory=lambda:next(ids))
+    attributes: dict = field(default_factory=dict)
 
 class Document:
     def __init__(self, name):
@@ -62,6 +66,8 @@ class Document:
         self.media = {}
         self.spine = []
         self.book_uuid = uuid.uuid4()
+
+        self.title = 'Structure and Interpretation of Computer Programs, Second Edition'
 
         self.list_content(name)
 
@@ -89,14 +95,13 @@ class Document:
             name = urljoin(name, ref)
 
     def content_opf(self):
-        TITLE = 'Structure and Interpretation of Computer Programs, Second Edition'
         AUTHOR = 'Harold Abelson and Gerald Jay Sussman with Julie Sussman'
         PUBLISHER = 'MIT Press'
         PUB_DATE = '1996-08-15'
         LANGUAGE = 'en-US'
         modified = datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
         metadata = f'''  <metadata>
-    <dc:title>{TITLE}</dc:title>
+    <dc:title>{self.title}</dc:title>
     <dc:creator>{AUTHOR}</dc:creator>
     <dc:identifier id="bookid">urn:uuid:{self.book_uuid}</dc:identifier>
     <dc:language>{LANGUAGE}</dc:language>
@@ -105,19 +110,18 @@ class Document:
     <meta property="dcterms:modified">{modified}</meta>
   </metadata>'''
 
-        ids = (f'item{n}' for n in count(1000))
 
         id_for_media = {
             med.name: next(ids) for med in self.media.values()}
 
         items = [
-            f'    <item href="{name}" id="{id_}" media-type="{mimetypes.guess_type(name)[0]}"/>'
-            for name, id_ in id_for_media.items()]
+            f'    <item href="{med.name}" id="{med.id}" media-type="{mimetypes.guess_type(med.name)[0]}"/>'
+            for med in self.media.values()]
 
         manifest = '  <manifest>\n' + '\n'.join(items) + '\n  </manifest>'
 
         itemrefs = [
-            f'    <itemref idref="{id_for_media[med.name]}"/>'
+            f'    <itemref idref="{med.id}"/>'
             for med in self.spine]
 
         spine = '  <spine>\n' + '\n'.join(itemrefs) + '\n  </spine>'
@@ -128,6 +132,16 @@ class Document:
 {manifest}
 {spine}
 </package>'''
+
+    def toc_entries(self):
+        for med in self.spine:
+            soup = BeautifulSoup(med.data, 'html5lib')
+            for tag in soup.find_all(re.compile(r'^h\d$')):
+                if tag.get('id'):
+                    text = ' '.join(tag.stripped_strings)
+                    yield (med.name, tag['id'], text, tag.name)
+                else:
+                    print ('No ID for', tag)
 
     def write(self, name):
         with zipfile.ZipFile(name, 'w') as archive:
@@ -140,6 +154,7 @@ class Document:
   </rootfiles>
 </container>
 ''')
+            toc = self.toc_ncx()
             content = self.content_opf()
             archive.writestr('content.opf', content)
             with open('content.opf', 'w') as dummy:
@@ -148,7 +163,47 @@ class Document:
                 assert isinstance(med.data, (str, bytes)), med
                 archive.writestr(med.name, med.data)
 
+    def toc_ncx(self):
+        lines = [
+            '<?xml version="1.0" encoding="utf-8"?>',
+            '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="eng">',
+            '  <head>',
+            '    <meta content="uuid:{72c5ac92-06f3-4601-ad2b-076ce642f754}" name="dtb:uid"/>',
+            '    <meta content="3" name="dtb:depth"/>',
+            '    <meta content="0" name="dtb:totalPageCount"/>',
+            '    <meta content="0" name="dtb:maxPageNumber"/>',
+            '  </head>',
+           f'  <docTitle><text>{self.title}</text></docTitle>',
+            '  <navMap>',
+        ]
 
+        level = 0
+        num = count(1)
+        for (fname, fragment, text, tag) in self.toc_entries():
+            nlevel = int(tag[1:])
+            if nlevel > 3:
+                continue
+            if nlevel == level+1:
+                pass
+            elif nlevel > level+1:
+                assert False
+            else:
+                for k in range(level, nlevel-1, -1):
+                    ind = '    '+k*'  '
+                    lines.append(f'{ind}</navPoint>')
+            level = nlevel
+            n = next(num)
+            ind = '    '+level*'  '
+            href = fname + '#' + fragment
+            lines.append(f'{ind}<navPoint id="num_{n}" playOrder="{n}">')
+            lines.append(f'{ind}  <navLabel><text>{text}</text></navLabel>')
+            lines.append(f'{ind}  <content src="{href}"/>')
+        for k in range(level, 0, -1):
+            ind = '    '+k*'  '
+            lines.append(f'{ind}</navPoint>')
+        lines.append('  </navMap>')
+        lines.append('</ncx>')
+        return '\n'.join(lines)
 
     def make_xml(self):
         for med in self.media.values():
@@ -175,6 +230,7 @@ class Document:
                 remove_toc_backlinks(soup)
                 anchor_name_to_id_and_deduplicate(soup)
                 move_anchors_from_ul_to_li(soup)
+                move_anchor_id_to_header(soup)
                 update_anchors_href(soup)
                 remove_empty_p_tag(soup)
 
@@ -239,6 +295,8 @@ def clean_headers(soup):
             tag.div.unwrap()
         if tag.p:
             tag.p.unwrap()
+        if tag.code:
+            tag.code.unwrap()
 
 def clean_epigraph_content(soup):
     for tag in soup.find_all(**{'class': 'epigraph'}):
@@ -267,7 +325,6 @@ def remove_font_tag(soup):
 
 def remove_toc_backlinks(soup):
     for tag in soup.find_all('a', href=re.compile(r'%_toc_%')):
-        print(tag)
         tag.unwrap()
 
 def update_anchors_href(soup):
@@ -315,6 +372,17 @@ def move_anchors_from_ul_to_li(soup):
         if tag.parent.name == 'ul':
             tag.parent.li.insert(0, tag)
 
+def move_anchor_id_to_header(soup):
+    for tag in soup.find_all(re.compile(r'^h\d$')):
+        find_p = tag
+        while find_p.name != 'p' or find_p.a is None:
+            find_p = find_p.previous_sibling
+        anchor = find_p.a
+        id_ = anchor.get('id')
+        if id_:
+            if id_.startswith('a_chap') or id_.startswith('a_sec'):
+                tag['id'] = id_
+                anchor.unwrap()
 
 
 
