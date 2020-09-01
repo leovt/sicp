@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 import sys
 import toc
 from media import Medium
+import configparser
 
 sys.setrecursionlimit(3000)
 
@@ -50,10 +51,6 @@ class FindChildren(HTMLParser):
 
 class Document:
     def __init__(self, name):
-        self.reference_updates = {
-            'https://i.creativecommons.org/l/by-sa/4.0/88x31.png': 'cc-by-sa.png'
-        }
-
         self.media = {}
         self.spine = []
         self.book_uuid = uuid.uuid4()
@@ -70,8 +67,6 @@ class Document:
             parser = FindChildren()
             parser.feed(med.data)
             for ref in parser.download_only:
-                if ref in self.reference_updates:
-                    ref = self.reference_updates[ref]
                 absref = urljoin(name, ref)
                 if os.path.exists(absref):
                     self.media[absref] = Medium(name=absref, data=open(absref, 'rb').read())
@@ -138,6 +133,14 @@ class Document:
                 else:
                     print ('No ID for', tag)
 
+    def replace_resources(self):
+        config = configparser.ConfigParser()
+        assert config.read('new_content/replace.ini')
+        for fname in config.sections():
+            arcname = config.get(fname, 'arcname')
+            replaces = config.get(fname, 'replaces')
+            self.media[replaces] = Medium(name=arcname,
+                data=open('new_content/'+fname,'rb').read())
 
     def write(self, name):
         with zipfile.ZipFile(name, 'w') as archive:
@@ -349,6 +352,7 @@ def move_anchor_id_to_header(soup):
 def main():
     doc = Document('book/book.html')
     doc.make_xml()
+    doc.replace_resources()
     doc.write('sicp.epub')
 
 if __name__ == '__main__':
