@@ -1,15 +1,15 @@
 import zipfile
 import os
 import mimetypes
-from itertools import count
 from datetime import datetime
 import uuid
 from html.parser import HTMLParser
 from urllib.parse import urljoin
-from dataclasses import dataclass, field
 import re
 from bs4 import BeautifulSoup
 import sys
+import toc
+from media import Medium
 
 sys.setrecursionlimit(3000)
 
@@ -47,15 +47,6 @@ class FindChildren(HTMLParser):
     def handle_data(self, data):
         self.data = data.strip()
         #print("Encountered some data  :", data)
-
-ids = (f'item{n}' for n in count(1000))
-
-@dataclass
-class Medium:
-    name: str
-    data: str
-    id: str = field(default_factory=lambda:next(ids))
-    attributes: dict = field(default_factory=dict)
 
 class Document:
     def __init__(self, name):
@@ -140,35 +131,13 @@ class Document:
     def toc_entries(self):
         for med in self.spine:
             soup = BeautifulSoup(med.data, 'html5lib')
-            for tag in soup.find_all(re.compile(r'^h\d$')):
+            for tag in soup.find_all(re.compile(r'^h[1-3]$')):
                 if tag.get('id'):
                     text = ' '.join(tag.stripped_strings)
-                    yield (med.name, tag['id'], text, int(tag.name[1:]))
+                    yield toc.FlatTocInfo(med.name +'#' + tag['id'], text, int(tag.name[1:]))
                 else:
                     print ('No ID for', tag)
 
-    def hierarchical_toc_entries(self):
-        root = (None, None, None, 0, None, [])
-        previous = root
-
-        for fname, id, text, level in self.toc_entries():
-            if level>3:
-                continue
-            assert isinstance(level, int)
-            assert isinstance(text, str)
-            print('  '*level, text[:30])
-            if level>previous[3]:
-                assert level == 1+previous[3]
-                parent = previous
-            else:
-                while level < previous[3]:
-                    previous = previous[4]
-                parent = previous[4]
-            #print(parent[:4])
-            entry = (fname, id, text, level, parent, [])
-            parent[5].append(entry)
-            previous = entry
-        return root[5]
 
     def write(self, name):
         with zipfile.ZipFile(name, 'w') as archive:
@@ -181,10 +150,13 @@ class Document:
   </rootfiles>
 </container>
 ''')
-            toc = self.toc_ncx()
-            self.media[toc.name] = toc
-            toc = self.toc_xhtml()
-            self.media[toc.name] = toc
+            mytoc = toc.Toc()
+            for item in self.toc_entries():
+                mytoc.add(item)
+            med = mytoc.ncx(self)
+            self.media[med.name] = med
+            med = mytoc.xhtml(self)
+            self.media[med.name] = med
             content = self.content_opf()
             archive.writestr('content.opf', content)
             with open('content.opf', 'w') as dummy:
@@ -192,78 +164,6 @@ class Document:
             for med in self.media.values():
                 assert isinstance(med.data, (str, bytes)), med
                 archive.writestr(med.name, med.data)
-
-    def toc_ncx(self):
-        lines = [
-            '<?xml version="1.0" encoding="utf-8"?>',
-            '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="eng">',
-            '  <head>',
-           f'    <meta content="urn:uuid:{self.book_uuid}" name="dtb:uid"/>',
-            '    <meta content="3" name="dtb:depth"/>',
-            '    <meta content="0" name="dtb:totalPageCount"/>',
-            '    <meta content="0" name="dtb:maxPageNumber"/>',
-            '  </head>',
-           f'  <docTitle><text>{self.title}</text></docTitle>',
-            '  <navMap>',
-        ]
-
-        level = 0
-        num = count(1)
-        def handle(entries):
-            for (fname, fragment, text, level, parent, children) in entries:
-                ind = '      ' + '  '*level
-                href = fname + '#' + fragment
-                n = next(num)
-                lines.append(f'{ind}<navPoint id="num_{n}" playOrder="{n}">')
-                lines.append(f'{ind}  <navLabel><text>{text}</text></navLabel>')
-                lines.append(f'{ind}  <content src="{href}"/>')
-                if children:
-                    handle(children)
-                lines.append(f'{ind}</navPoint>')
-        handle(self.hierarchical_toc_entries())
-
-        lines.append('  </navMap>')
-        lines.append('</ncx>')
-        
-        return Medium(name='toc.ncx',
-                      data='\n'.join(lines),
-                      id='toc',
-                      attributes={'media-type': 'application/x-dtbncx+xml'})
-
-    def toc_xhtml(self):
-        lines = [
-            '<?xml version="1.0" encoding="utf-8"?>',
-            '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">',
-            '  <head>',
-           f'    <title>{self.title}</title>',
-            '  </head>',
-            '  <body>',
-            '    <nav epub:type="toc">',
-            '      <ol>',
-        ]
-
-        def handle(entries):
-            for (fname, fragment, text, level, parent, children) in entries:
-                ind = '      ' + '  '*level
-                href = fname + '#' + fragment
-                lines.append(f'{ind}<li>')
-                lines.append(f'{ind}  <a href="{href}">{text}</a>')
-                if children:
-                    lines.append(f'{ind}  <ol>')
-                    handle(children)
-                    lines.append(f'{ind}  </ol>')
-                lines.append(f'{ind}</li>')
-        handle(self.hierarchical_toc_entries())
-
-        lines.append('      </ol>')
-        lines.append('    </nav>')
-        lines.append('  </body>')
-        lines.append('</html>')
-
-        return Medium(name='toc.xhtml',
-                      data='\n'.join(lines),
-                      id='nav',
-                      attributes={'properties': 'nav'})
 
     def make_xml(self):
         for med in self.media.values():
@@ -449,11 +349,6 @@ def move_anchor_id_to_header(soup):
 def main():
     doc = Document('book/book.html')
     doc.make_xml()
-    l = list(doc.toc_entries())
-    with open('test_toc.py','w') as f:
-        f.write('entries = ')
-        f.write(repr(l))
-
     doc.write('sicp.epub')
 
 if __name__ == '__main__':
