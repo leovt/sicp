@@ -209,30 +209,22 @@ class Document:
 
         level = 0
         num = count(1)
-        for (fname, fragment, text, nlevel) in self.toc_entries():
-            if nlevel > 3:
-                continue
-            if nlevel == level+1:
-                pass
-            elif nlevel > level+1:
-                assert False
-            else:
-                for k in range(level, nlevel-1, -1):
-                    ind = '    '+k*'  '
-                    lines.append(f'{ind}</navPoint>')
-            level = nlevel
-            n = next(num)
-            ind = '    '+level*'  '
-            href = fname + '#' + fragment
-            lines.append(f'{ind}<navPoint id="num_{n}" playOrder="{n}">')
-            lines.append(f'{ind}  <navLabel><text>{text}</text></navLabel>')
-            lines.append(f'{ind}  <content src="{href}"/>')
-        for k in range(level, 0, -1):
-            ind = '    '+k*'  '
-            lines.append(f'{ind}</navPoint>')
+        def handle(entries):
+            for (fname, fragment, text, level, parent, children) in entries:
+                ind = '      ' + '  '*level
+                href = fname + '#' + fragment
+                n = next(num)
+                lines.append(f'{ind}<navPoint id="num_{n}" playOrder="{n}">')
+                lines.append(f'{ind}  <navLabel><text>{text}</text></navLabel>')
+                lines.append(f'{ind}  <content src="{href}"/>')
+                if children:
+                    handle(children)
+                lines.append(f'{ind}</navPoint>')
+        handle(self.hierarchical_toc_entries())
+
         lines.append('  </navMap>')
         lines.append('</ncx>')
-
+        
         return Medium(name='toc.ncx',
                       data='\n'.join(lines),
                       id='toc',
