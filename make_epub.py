@@ -111,12 +111,16 @@ class Document:
   </metadata>'''
 
 
-        id_for_media = {
-            med.name: next(ids) for med in self.media.values()}
-
-        items = [
-            f'    <item href="{med.name}" id="{med.id}" media-type="{mimetypes.guess_type(med.name)[0]}"/>'
-            for med in self.media.values()]
+        items = []
+        for med in self.media.values():
+            attrs = {
+                'href': med.name,
+                'id': med.id,
+                'media-type': mimetypes.guess_type(med.name)[0],
+            }
+            attrs.update(med.attributes)
+            attrs=' '.join(f'{key}="{value}"' for key, value in attrs.items())
+            items.append(f'    <item {attrs}/>')
 
         manifest = '  <manifest>\n' + '\n'.join(items) + '\n  </manifest>'
 
@@ -124,7 +128,7 @@ class Document:
             f'    <itemref idref="{med.id}"/>'
             for med in self.spine]
 
-        spine = '  <spine>\n' + '\n'.join(itemrefs) + '\n  </spine>'
+        spine = '  <spine toc="toc">\n' + '\n'.join(itemrefs) + '\n  </spine>'
 
         return f'''<?xml version='1.0' encoding='utf-8'?>
 <package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" xml:lang="en" unique-identifier="bookid" version="3.0">
@@ -139,9 +143,32 @@ class Document:
             for tag in soup.find_all(re.compile(r'^h\d$')):
                 if tag.get('id'):
                     text = ' '.join(tag.stripped_strings)
-                    yield (med.name, tag['id'], text, tag.name)
+                    yield (med.name, tag['id'], text, int(tag.name[1:]))
                 else:
                     print ('No ID for', tag)
+
+    def hierarchical_toc_entries(self):
+        root = (None, None, None, 0, None, [])
+        previous = root
+
+        for fname, id, text, level in self.toc_entries():
+            if level>3:
+                continue
+            assert isinstance(level, int)
+            assert isinstance(text, str)
+            print('  '*level, text[:30])
+            if level>previous[3]:
+                assert level == 1+previous[3]
+                parent = previous
+            else:
+                while level < previous[3]:
+                    previous = previous[4]
+                parent = previous[4]
+            #print(parent[:4])
+            entry = (fname, id, text, level, parent, [])
+            parent[5].append(entry)
+            previous = entry
+        return root[5]
 
     def write(self, name):
         with zipfile.ZipFile(name, 'w') as archive:
@@ -155,6 +182,9 @@ class Document:
 </container>
 ''')
             toc = self.toc_ncx()
+            self.media[toc.name] = toc
+            toc = self.toc_xhtml()
+            self.media[toc.name] = toc
             content = self.content_opf()
             archive.writestr('content.opf', content)
             with open('content.opf', 'w') as dummy:
@@ -168,7 +198,7 @@ class Document:
             '<?xml version="1.0" encoding="utf-8"?>',
             '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="eng">',
             '  <head>',
-            '    <meta content="uuid:{72c5ac92-06f3-4601-ad2b-076ce642f754}" name="dtb:uid"/>',
+           f'    <meta content="urn:uuid:{self.book_uuid}" name="dtb:uid"/>',
             '    <meta content="3" name="dtb:depth"/>',
             '    <meta content="0" name="dtb:totalPageCount"/>',
             '    <meta content="0" name="dtb:maxPageNumber"/>',
@@ -179,8 +209,7 @@ class Document:
 
         level = 0
         num = count(1)
-        for (fname, fragment, text, tag) in self.toc_entries():
-            nlevel = int(tag[1:])
+        for (fname, fragment, text, nlevel) in self.toc_entries():
             if nlevel > 3:
                 continue
             if nlevel == level+1:
@@ -203,7 +232,46 @@ class Document:
             lines.append(f'{ind}</navPoint>')
         lines.append('  </navMap>')
         lines.append('</ncx>')
-        return '\n'.join(lines)
+
+        return Medium(name='toc.ncx',
+                      data='\n'.join(lines),
+                      id='toc',
+                      attributes={'media-type': 'application/x-dtbncx+xml'})
+
+    def toc_xhtml(self):
+        lines = [
+            '<?xml version="1.0" encoding="utf-8"?>',
+            '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">',
+            '  <head>',
+           f'    <title>{self.title}</title>',
+            '  </head>',
+            '  <body>',
+            '    <nav epub:type="toc">',
+            '      <ol>',
+        ]
+
+        def handle(entries):
+            for (fname, fragment, text, level, parent, children) in entries:
+                ind = '      ' + '  '*level
+                href = fname + '#' + fragment
+                lines.append(f'{ind}<li>')
+                lines.append(f'{ind}  <a href="{href}">{text}</a>')
+                if children:
+                    lines.append(f'{ind}  <ol>')
+                    handle(children)
+                    lines.append(f'{ind}  </ol>')
+                lines.append(f'{ind}</li>')
+        handle(self.hierarchical_toc_entries())
+
+        lines.append('      </ol>')
+        lines.append('    </nav>')
+        lines.append('  </body>')
+        lines.append('</html>')
+
+        return Medium(name='toc.xhtml',
+                      data='\n'.join(lines),
+                      id='nav',
+                      attributes={'properties': 'nav'})
 
     def make_xml(self):
         for med in self.media.values():
@@ -389,6 +457,11 @@ def move_anchor_id_to_header(soup):
 def main():
     doc = Document('book/book.html')
     doc.make_xml()
+    l = list(doc.toc_entries())
+    with open('test_toc.py','w') as f:
+        f.write('entries = ')
+        f.write(repr(l))
+
     doc.write('sicp.epub')
 
 if __name__ == '__main__':
