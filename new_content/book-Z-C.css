@@ -1,0 +1,29 @@
+.footnote {
+   font-size: 75%;
+}
+
+.epigraph {
+   font-size: 75%;
+   width: 70%;
+   margin-left: auto;
+}
+
+caption {
+  text-align: left;
+  caption-side: bottom;
+}
+
+table {
+  width: 100%;
+}
+
+.smallprint {
+   color: gray;
+   font-size: 75%;
+   text-align: right;
+}
+
+.smallprint hr {
+   text-align: left;
+   width: 40%;
+}
