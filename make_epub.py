@@ -196,6 +196,7 @@ class Document:
                 remove_obsolete_attributes(soup)
                 remove_font_tag(soup)
                 replace_inline_formula_images(soup)
+                remove_navigation(soup)
 
                 clean_epigraph_content(soup)
                 clean_headers(soup)
@@ -395,6 +396,9 @@ def move_anchor_id_to_header(soup):
         else:
             print('Found anchor but no id', anchor, tag)
 
+def remove_navigation(soup):
+    for tag in soup.find_all('div', **{'class': 'navigation'}):
+        tag.decompose()
 
 def main():
     doc = Document('book/book.html')
