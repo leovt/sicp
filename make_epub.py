@@ -107,6 +107,7 @@ class Document:
     <dc:date>{PUB_DATE}</dc:date>
     <dc:publisher>{PUBLISHER}</dc:publisher>
     <meta property="dcterms:modified">{modified}</meta>
+    <meta name="cover" content="cover" />
   </metadata>'''
 
 
@@ -145,6 +146,10 @@ class Document:
                     yield toc.FlatTocInfo(med.name +'#' + tag['id'], text, int(tag.name[1:]))
                 else:
                     print ('No ID for', tag)
+
+    def set_cover(self, cover):
+        self.media[cover].id = 'cover'
+        self.media[cover].attributes['properties'] = 'cover-image'
 
     def replace_resources(self):
         config = configparser.ConfigParser()
@@ -386,6 +391,7 @@ def main():
     doc = Document('book/book.html')
     doc.make_xml()
     doc.replace_resources()
+    doc.set_cover('book/cover.jpg')
     doc.update_links()
     doc.write('sicp.epub')
 
