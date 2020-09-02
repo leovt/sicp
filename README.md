@@ -5,6 +5,7 @@ https://mitpress.mit.edu/sites/default/files/sicp/index.html
 
 # Licensing
 
+## Licensing of the book
 Structure and Interpretation of Computer Programs by Harold Abelson and Gerald Jay Sussman with Julie Sussman 
 is licensed under a Creative Commons Attribution-ShareAlike 4.0 International License by the MIT Press. 
 
@@ -15,6 +16,9 @@ The EPub which is produced by the scripts in this repository is a derivative wor
 It is licensed under a Creative Commons Attribution-ShareAlike 4.0 International License. 
 
 To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/4.0/ or send a letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
+
+## Licensing of the program code
+The program code used to produce the EPub version of the book is licensed under the MIT license (see the file LICENSE)
 
 # Modifications to the book
 The html markup has been modified in order to be used in the EPub format.
