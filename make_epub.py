@@ -413,6 +413,16 @@ def main():
     doc.replace_resources()
     doc.remove_unused_images()
     doc.set_cover('book/cover.jpg')
+
+    note = doc.media['book/book-Z-H-2.html'].soup.new_tag('p')
+    note.string = '''
+This book in epub format is licensed under a Creative Commons Attribution-ShareAlike 4.0 International License.
+It is a derivative work of Structure and Interpretation of Computer Programs by Harold Abelson and Gerald Jay Sussman with Julie Sussman which is licensed under a Creative Commons Attribution-ShareAlike 4.0 International License by the MIT Press.
+Modifications have been made not to the content but to the presentation in order to produce the epub file format.
+This book in epub format has no endorsement by the authors or MIT press.
+The following notes are copied from the MIT Press release of the book.'''
+    doc.media['book/book-Z-H-2.html'].soup.html.body.insert(0, note)
+
     doc.update_links()
     doc.write('sicp.epub')
 
