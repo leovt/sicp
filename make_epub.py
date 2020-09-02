@@ -242,6 +242,13 @@ class Document:
                 if modified:
                     med.data = soup.prettify()
 
+    def remove_unused_images(self):
+        to_remove = [x for x in self.media
+            if re.match(r'^book/book-Z-G-D-(\d+).gif$', x)]
+        for name in to_remove:
+            del self.media[name]
+
+
 
 def rename_obsolete_tt_tag(soup):
     for tag in soup.find_all('tt'):
@@ -404,6 +411,7 @@ def main():
     doc = Document('book/book.html')
     doc.make_xml()
     doc.replace_resources()
+    doc.remove_unused_images()
     doc.set_cover('book/cover.jpg')
     doc.update_links()
     doc.write('sicp.epub')
