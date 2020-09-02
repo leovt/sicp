@@ -373,16 +373,27 @@ def move_anchors_from_ul_to_li(soup):
 
 def move_anchor_id_to_header(soup):
     for tag in soup.find_all(re.compile(r'^h\d$')):
-        find_p = tag
-        while find_p.name != 'p' or find_p.a is None:
-            find_p = find_p.previous_sibling
-        anchor = find_p.a
+        walk = tag
+        while True:
+            walk = walk.previous_sibling
+            if walk.name == 'a':
+                anchor = walk
+                break
+            elif walk.name == 'p' and walk.a is not None:
+                anchor = list(walk.find_all('a'))[-1]
+                break
+            elif walk is None or (walk.string or '').strip():
+                anchor = None
+                break
+        if not anchor:
+            print('Could not find anchor for', tag)
+            continue
         id_ = anchor.get('id')
-        if id_:
-            if id_.startswith('a_chap') or id_.startswith('a_sec'):
-                tag['id'] = id_
-                anchor.unwrap()
-
+        if id_ and (id_.startswith('a_chap') or id_.startswith('a_sec')):
+            tag['id'] = id_
+            anchor.unwrap()
+        else:
+            print('Found anchor but no id', anchor, tag)
 
 
 def main():
