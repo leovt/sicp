@@ -2,5 +2,4 @@ venv
 book
 sicp
 sicp.epub
-content.opf
 __pycache__

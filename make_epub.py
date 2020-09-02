@@ -180,8 +180,6 @@ class Document:
             self.media[med.name] = med
             content = self.content_opf()
             archive.writestr('content.opf', content)
-            with open('content.opf', 'w') as dummy:
-                dummy.write(content)
             for med in self.media.values():
                 assert isinstance(med.get_data(), (str, bytes)), med
                 archive.writestr(med.name, med.get_data())
