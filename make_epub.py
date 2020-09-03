@@ -11,6 +11,7 @@ import sys
 import toc
 from media import Medium
 import configparser
+import PIL.Image
 
 sys.setrecursionlimit(3000)
 
@@ -248,7 +249,22 @@ class Document:
         for name in to_remove:
             del self.media[name]
 
-
+    def set_height_on_images(self):
+        '''
+        The original images are rendered with an ex height of approx 6px
+        If the image size is thus set to (height in image pixels)/6 ex-heights
+        The rendered text in the image should approximately show in the same height
+        as the surrounding text
+        '''
+        for med in self.media.values():
+            if med.soup:
+                for tag in med.soup.find_all('img',
+                        src=re.compile(r'^ch\d-Z-G-\d+.gif$')):
+                    abs_src = urljoin(med.name, tag['src'])
+                    image = PIL.Image.open(abs_src)
+                    height_in_pixels = image.size[1]
+                    height_in_ex = height_in_pixels * 0.16
+                    tag['style'] = f'height:{height_in_ex:0.2f}ex;'
 
 def rename_obsolete_tt_tag(soup):
     for tag in soup.find_all('tt'):
@@ -423,6 +439,7 @@ This book in epub format has no endorsement by the authors or MIT press.
 The following notes are copied from the MIT Press release of the book.'''
     doc.media['book/book-Z-H-2.html'].soup.html.body.insert(0, note)
 
+    doc.set_height_on_images()
     doc.update_links()
     doc.write('sicp.epub')
 
