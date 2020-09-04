@@ -6,7 +6,7 @@ import uuid
 from html.parser import HTMLParser
 from urllib.parse import urljoin
 import re
-from bs4 import BeautifulSoup, Doctype
+from bs4 import BeautifulSoup, Doctype, Comment
 import sys
 import toc
 from media import Medium
@@ -198,6 +198,7 @@ class Document:
                 remove_font_tag(soup)
                 replace_inline_formula_images(soup)
                 remove_navigation(soup)
+                remove_comments(soup)
 
                 clean_epigraph_content(soup)
                 clean_headers(soup)
@@ -434,6 +435,11 @@ def replace_quotes_and_dashes(soup):
                .replace("---", '\u2014')
                .replace("--", '\u2013')
         )
+
+def remove_comments(soup):
+    for tag in soup.findAll(text=lambda text:isinstance(text, Comment)):
+        print(tag)
+        tag.extract()
 
 def main():
     doc = Document('book/book.html')
