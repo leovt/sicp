@@ -4,7 +4,7 @@ Project to produce an epub from the open book at
 https://mitpress.mit.edu/sites/default/files/sicp/index.html
 
 # Download the book
-The book can be downloaded from the github release: https://github.com/leovt/scip/releases/download/v1.1/sicp.epub
+The book can be downloaded from the github release: https://github.com/leovt/sicp/releases/download/v1.1/sicp.epub
 
 # Licensing
 
