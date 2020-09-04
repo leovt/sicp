@@ -201,7 +201,7 @@ class Document:
 
                 clean_epigraph_content(soup)
                 clean_headers(soup)
-                replace_quotes(soup)
+                replace_quotes_and_dashes(soup)
 
                 move_table_out_of_p_tag(soup)
                 clean_caption_tags(soup)
@@ -424,12 +424,16 @@ def remove_navigation(soup):
     for tag in soup.find_all('div', **{'class': 'navigation'}):
         tag.decompose()
 
-def replace_quotes(soup):
-    for tag in soup.find_all(string=re.compile(r"''|``")):
-        tag.replace_with(tag.replace("''", '\u201d').replace("``", '\u201c'))
-    s = str(soup)
-    if "''" in s or "``" in s:
-        print("INFO: remaining old-style quotes")
+def replace_quotes_and_dashes(soup):
+    for tag in soup.find_all(string=re.compile(r"''|``|--")):
+        if any(t.name == 'code' for t in tag.parents):
+            continue
+        tag.replace_with(
+            tag.replace("''", '\u201d')
+               .replace("``", '\u201c')
+               .replace("---", '\u2014')
+               .replace("--", '\u2013')
+        )
 
 def main():
     doc = Document('book/book.html')
