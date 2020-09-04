@@ -4,7 +4,7 @@ Project to produce an epub from the open book at
 https://mitpress.mit.edu/sites/default/files/sicp/index.html
 
 # Download the book
-The book can be downloaded from the github release: https://github.com/leovt/scip/releases/download/v1.0/sicp.epub
+The book can be downloaded from the github release: https://github.com/leovt/scip/releases/download/v1.1/sicp.epub
 
 # Licensing
 
@@ -30,6 +30,16 @@ These modifications should not alter the content, but will affect presentation.
 
 Tables of Content have been added according to the EPub file format.
 
+# Changelog
+
+## v1.1
+* Set a reasonable size for images
+* Improved cover page
+* Replace quotes and dashes with typograpical unicode symbols
+* Remove comments
+
 # Notes
 MathML has not been used on purpose as some EPub reading devices do not support MathML and provide illegible equations.
 So far some symbols have been replaced by unicode charactes, displayed equation remain in the image format of the original source. 
+
+Much of the python code is very specific to this particular e-book. In a later stage I might separate the general parts from the specific parts.
