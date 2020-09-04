@@ -158,8 +158,18 @@ class Document:
         for fname in config.sections():
             arcname = config.get(fname, 'arcname')
             replaces = config.get(fname, 'replaces')
-            self.media[replaces] = Medium(name=arcname,
-                data=open('new_content/'+fname,'rb').read())
+            if replaces in self.media:
+                id_ = self.media[replaces].id
+            else:
+                id_ = None
+            med = Medium(name=arcname,
+                data=open('new_content/'+fname,'rb').read(),
+                id=id_)
+            if med.name.endswith('html'):
+                med.soup = BeautifulSoup(med.data, 'html5lib')
+                med.data = None
+            self.media[replaces] = med
+
 
     def write(self, name):
         with zipfile.ZipFile(name, 'w') as archive:
@@ -438,13 +448,13 @@ def replace_quotes_and_dashes(soup):
 
 def remove_comments(soup):
     for tag in soup.findAll(text=lambda text:isinstance(text, Comment)):
-        print(tag)
         tag.extract()
 
 def main():
     doc = Document('book/book.html')
     doc.make_xml()
     doc.replace_resources()
+    doc.media['book/book.html'].attributes['properties'] = 'svg'
     doc.remove_unused_images()
     doc.set_cover('book/cover.jpg')
 
